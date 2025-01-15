@@ -1,0 +1,20 @@
+{
+    "build": { "dockerfile": "Dockerfile" },
+    "remoteUser": "vscode",
+    "appPort": ["3000:3000"],
+    "features": {
+      "ghcr.io/rails/devcontainer/features/activestorage": {}
+    },
+    "customizations": {
+      "vscode": {
+        "extensions": [
+          "ninoseki.vscode-mogami",
+          "bradlc.vscode-tailwindcss",
+          "will-wow.vscode-alternate-file",
+          "setobiralo.erb-commenter",
+          "ms-azuretools.vscode-docker"
+        ]
+      }
+    },
+    "runArgs": ["--env-file", "${localWorkspaceFolder}/.devcontainer/devcontainer.env"]
+}

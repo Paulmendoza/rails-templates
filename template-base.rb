@@ -1,3 +1,7 @@
+def source_paths
+  Array(super) << [File.expand_path(File.dirname(__FILE__))]
+end
+
 # Devise
 gem 'devise'
 run 'bundle install'
@@ -12,11 +16,6 @@ gem 'omniauth-facebook'
 gem 'omniauth-google-oauth2'
 run 'bundle install'
 
-inject_into_file "config/routes.rb", after: "devise_for :users" do <<-RUBY
-  , controllers: { omniauth_callbacks: 'users/omniauth_callbacks' }
-  RUBY
-end
-
 # Integrate Omniauth with Devise users
 inject_into_file "app/models/user.rb", before: "end" do <<-RUBY
   devise :omniauthable, omniauth_providers: [:google_oauth2, :facebook]
@@ -30,39 +29,15 @@ inject_into_file "app/models/user.rb", before: "end" do <<-RUBY
   RUBY
 end
 
-generate "devise:controllers", "users", "-c=omniauth_callbacks"
+# Add Users::OmniauthCallbacksController
+# Cleaned up version of what's generated with 'generate "devise:controllers", "users", "-c=omniauth_callbacks"'
+template "./omniauth-file-template/omniauth_callbacks_controller.rb", "app/controllers/users/omniauth_callbacks_controller.rb"
 
-inject_into_file "app/controllers/users/omniauth_callbacks_controller.rb", before: "\n  # You should also create an action method in this controller like this:" do <<-CODE
-  def google_oauth2
-    @user = User.from_omniauth(request.env['omniauth.auth'])
-
-    if @user.persisted?
-      sign_in_and_redirect @user
-    else
-      session['devise.google_data'] = request.env['omniauth.auth'].except(:extra) # Removing extra as it can overflow some session stores
-      redirect_to new_user_registration_url, alert: @user.errors.full_messages.join("\n")
-    end
-  end
-
-  def facebook
-    @user = User.from_omniauth(request.env["omniauth.auth"])
-
-    if @user.persisted?
-      sign_in_and_redirect @user, event: :authentication #this will throw if @user is not activated
-      set_flash_message(:notice, :success, kind: "Facebook") if is_navigational_format?
-    else
-      session["devise.facebook_data"] = request.env["omniauth.auth"].except(:extra) # Removing extra as it can overflow some session stores
-      redirect_to new_user_registration_url
-    end
-  end
-
-  def failure
-    redirect_to root_path
-  end
-CODE
+# Add Omniauth callback routes
+inject_into_file "config/routes.rb", replace: "devise_for :users" do <<-RUBY
+  devise_for :users, controllers: { omniauth_callbacks: 'users/omniauth_callbacks' }
+RUBY
 end
-
-route "devise_for :users, controllers: { omniauth_callbacks: 'users/omniauth_callbacks' }"
 
 generate :migration, "AddOmniauthToUsers", "provider:string", "uid:string"
 rails_command 'db:migrate'
@@ -74,6 +49,7 @@ inject_into_file "config/initializers/devise.rb", after: "# ==> OmniAuth\n" do <
 CODE
 end
 
+# Add links to main layout
 inject_into_file "app/views/layouts/application.html.erb", after: "<body>\n" do <<-CODE
   <nav>
     <%= link_to "Home", root_path %>
@@ -85,42 +61,13 @@ inject_into_file "app/views/layouts/application.html.erb", after: "<body>\n" do 
 CODE
 end
 
+# Add Home page
 generate :controller, "home", "index"
-
 route "root to: 'home#index'"
 
-file ".devcontainer/devcontainer.json", <<-JSON
-  {
-  "build": { "dockerfile": "Dockerfile" },
-  "remoteUser": "vscode",
-  "appPort": ["3000:3000"],
-  "features": {
-    "ghcr.io/rails/devcontainer/features/activestorage": {}
-  },
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "ninoseki.vscode-mogami",
-        "bradlc.vscode-tailwindcss",
-        "will-wow.vscode-alternate-file",
-        "setobiralo.erb-commenter",
-        "ms-azuretools.vscode-docker"
-      ]
-    }
-  },
-  "runArgs": ["--env-file", "${localWorkspaceFolder}/.devcontainer/devcontainer.env"]
-}
-JSON
+# Add devcontainer files
+directory "./devcontainer-template", ".devcontainer"
 
-file ".devcontainer/Dockerfile", <<-Dockerfile
-FROM ghcr.io/rails/devcontainer/images/ruby:3.3.6
-RUN sudo apt-get update && sudo apt-get -y install libpq-dev
-Dockerfile
-
-file ".devcontainer/devcontainer.env", <<-ENV
-POSTGRESQL_LOC=
-FACEBOOK_APP_ID=
-FACEBOOK_APP_SECRET=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-ENV
+after_bundle do
+  git add: ".", commit: %(-m 'init.')
+end
