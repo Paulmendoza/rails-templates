@@ -34,10 +34,7 @@ end
 template "./omniauth-file-template/omniauth_callbacks_controller.rb", "app/controllers/users/omniauth_callbacks_controller.rb"
 
 # Add Omniauth callback routes
-inject_into_file "config/routes.rb", replace: "devise_for :users" do <<-RUBY
-  devise_for :users, controllers: { omniauth_callbacks: 'users/omniauth_callbacks' }
-RUBY
-end
+gsub_file "config/routes.rb", "devise_for :users\n", "devise_for :users, controllers: { omniauth_callbacks: 'users/omniauth_callbacks' }\n"
 
 generate :migration, "AddOmniauthToUsers", "provider:string", "uid:string"
 rails_command 'db:migrate'
